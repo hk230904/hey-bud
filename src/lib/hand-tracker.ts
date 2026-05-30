@@ -65,20 +65,6 @@ export function useHandTracker({
     if (!enabled) return;
     let cancelled = false;
 
-    (async () => {
-      try {
-        setStatus("loading");
-        await getLandmarker();
-        if (cancelled) return;
-        setStatus("ready");
-        loop();
-      } catch (e) {
-        if (cancelled) return;
-        setError((e as Error).message);
-        setStatus("error");
-      }
-    })();
-
     const loop = () => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -110,6 +96,20 @@ export function useHandTracker({
       }
       rafRef.current = requestAnimationFrame(loop);
     };
+
+    (async () => {
+      try {
+        setStatus("loading");
+        await getLandmarker();
+        if (cancelled) return;
+        setStatus("ready");
+        loop();
+      } catch (e) {
+        if (cancelled) return;
+        setError((e as Error).message);
+        setStatus("error");
+      }
+    })();
 
     return () => {
       cancelled = true;
