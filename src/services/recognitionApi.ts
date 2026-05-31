@@ -1,10 +1,13 @@
 /**
  * Centralized API service layer.
  *
- * Today every call hits a local mock backed by localStorage.
- * To go live, replace the implementations in this file with `fetch()`
- * against your real endpoints — call sites do not need to change.
+ * Real in-browser gesture recognition:
+ *  - MediaPipe GestureRecognizer (pretrained) for common gestures
+ *  - Rule-based ASL letter classifier on hand landmarks
+ *
+ * Swap these implementations with `fetch()` calls later without changing call sites.
  */
+import { classifyAsl, type NormalizedLandmark } from "@/lib/asl-classifier";
 import {
   feedbackRepo,
   logsRepo,
@@ -12,36 +15,38 @@ import {
   recSessionsRepo,
   uid,
 } from "@/lib/storage";
-import type {
-  Feedback,
-  Prediction,
-  RecognitionSession,
-} from "@/lib/types";
+import type { Feedback, Prediction, RecognitionSession } from "@/lib/types";
 
+/** Friendly labels for the MediaPipe pretrained categories. */
+const MEDIAPIPE_LABELS: Record<string, { gesture: string; text: string }> = {
+  Closed_Fist: { gesture: "Fist", text: "Fist" },
+  Open_Palm: { gesture: "Hello", text: "Hello" },
+  Pointing_Up: { gesture: "Point", text: "Point" },
+  Thumb_Down: { gesture: "Thumbs Down", text: "No" },
+  Thumb_Up: { gesture: "Thumbs Up", text: "Yes" },
+  Victory: { gesture: "Peace", text: "Peace" },
+  ILoveYou: { gesture: "I love you", text: "I love you" },
+};
+
+/** Surfaced to the Dashboard "Supported gestures" card. */
 export const SUPPORTED_GESTURES = [
   { gesture: "Hello", text: "Hello" },
-  { gesture: "Thank you", text: "Thank you" },
-  { gesture: "Yes", text: "Yes" },
-  { gesture: "No", text: "No" },
-  { gesture: "Please", text: "Please" },
-  { gesture: "Sorry", text: "Sorry" },
+  { gesture: "Thumbs Up", text: "Yes" },
+  { gesture: "Thumbs Down", text: "No" },
+  { gesture: "Peace", text: "Peace" },
+  { gesture: "Fist", text: "Fist" },
+  { gesture: "Point", text: "Point" },
   { gesture: "I love you", text: "I love you" },
-  { gesture: "Help", text: "Help" },
-  { gesture: "Good", text: "Good" },
-  { gesture: "Stop", text: "Stop" },
-  { gesture: "A", text: "A" },
-  { gesture: "B", text: "B" },
-  { gesture: "C", text: "C" },
-  { gesture: "D", text: "D" },
-  { gesture: "E", text: "E" },
+  ...["A", "B", "C", "D", "E", "F", "I", "L", "O", "U", "V", "W", "Y"].map(
+    (l) => ({ gesture: `ASL ${l}`, text: l }),
+  ),
 ];
 
 export interface PredictRequest {
   userId: string;
   sessionId: string | null;
-  // Future: landmarks payload from MediaPipe
-  landmarks?: number[][];
-  handDetected: boolean;
+  landmarks: NormalizedLandmark[] | null;
+  gesture: { name: string; score: number } | null;
 }
 
 export interface PredictResponse {
@@ -49,26 +54,66 @@ export interface PredictResponse {
   text: string;
   confidence: number;
   processingTimeMs: number;
+  source: "mediapipe" | "asl-rule";
 }
 
-/** Future: replace with `fetch('/predict', ...)` */
-export async function predict(req: PredictRequest): Promise<PredictResponse | null> {
-  if (!req.handDetected) return null;
+const MIN_CONFIDENCE = 0.6;
+
+export async function predict(
+  req: PredictRequest,
+): Promise<PredictResponse | null> {
+  if (!req.landmarks && !req.gesture) return null;
   const start = performance.now();
-  // Tiny synthetic latency for realism
-  await new Promise((r) => setTimeout(r, 40 + Math.random() * 80));
-  const choice =
-    SUPPORTED_GESTURES[Math.floor(Math.random() * SUPPORTED_GESTURES.length)];
-  const confidence = +(0.7 + Math.random() * 0.29).toFixed(3);
+
+  // Layer 1: pretrained MediaPipe gesture
+  let mp: { gesture: string; text: string; confidence: number } | null = null;
+  if (req.gesture && req.gesture.score >= MIN_CONFIDENCE) {
+    const mapped = MEDIAPIPE_LABELS[req.gesture.name];
+    if (mapped) {
+      mp = { ...mapped, confidence: +req.gesture.score.toFixed(3) };
+    }
+  }
+
+  // Layer 2: rule-based ASL letter
+  let asl: { gesture: string; text: string; confidence: number } | null = null;
+  if (req.landmarks) {
+    const r = classifyAsl(req.landmarks);
+    if (r && r.confidence >= MIN_CONFIDENCE) {
+      asl = {
+        gesture: `ASL ${r.letter}`,
+        text: r.letter,
+        confidence: r.confidence,
+      };
+    }
+  }
+
+  // Pick best — small bias to MediaPipe on ties
+  let chosen: typeof mp = null;
+  let source: PredictResponse["source"] = "mediapipe";
+  if (mp && asl) {
+    if (mp.confidence + 0.02 >= asl.confidence) {
+      chosen = mp;
+      source = "mediapipe";
+    } else {
+      chosen = asl;
+      source = "asl-rule";
+    }
+  } else if (mp) {
+    chosen = mp;
+    source = "mediapipe";
+  } else if (asl) {
+    chosen = asl;
+    source = "asl-rule";
+  }
+
+  if (!chosen) return null;
   return {
-    gesture: choice.gesture,
-    text: choice.text,
-    confidence,
+    ...chosen,
     processingTimeMs: +(performance.now() - start).toFixed(1),
+    source,
   };
 }
 
-/** Future: replace with `fetch('/save-prediction', POST)` */
 export async function savePrediction(
   userId: string,
   sessionId: string | null,
@@ -93,7 +138,6 @@ export async function savePrediction(
   return record;
 }
 
-/** Future: replace with `fetch('/history', GET)` */
 export async function getHistory(userId: string): Promise<Prediction[]> {
   return predictionsRepo.forUser(userId);
 }
@@ -102,7 +146,6 @@ export async function getAllHistory(): Promise<Prediction[]> {
   return predictionsRepo.all();
 }
 
-/** Future: replace with `fetch('/analytics', GET)` */
 export async function getAnalytics(userId: string) {
   const preds = predictionsRepo.forUser(userId);
   const sessions = recSessionsRepo.forUser(userId);
@@ -128,7 +171,6 @@ function computeAnalytics(
       ? 0
       : preds.reduce((s, p) => s + p.processingTimeMs, 0) / preds.length;
 
-  // last 14 days
   const days: { date: string; predictions: number; accuracy: number }[] = [];
   for (let i = 13; i >= 0; i--) {
     const d = new Date();
