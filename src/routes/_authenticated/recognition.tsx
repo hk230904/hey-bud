@@ -292,10 +292,17 @@ function RecognitionPage() {
               </div>
               <Progress value={current ? current.confidence * 100 : 0} />
             </div>
-            <div className="mt-3 text-xs text-muted-foreground">
-              {current
-                ? `Processed in ${current.processingTimeMs.toFixed(0)} ms`
-                : "Awaiting hand detection…"}
+            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {current
+                  ? `Processed in ${current.processingTimeMs.toFixed(0)} ms`
+                  : "Awaiting hand detection…"}
+              </span>
+              {currentSource && (
+                <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+                  {currentSource === "mediapipe" ? "Model" : "ASL rule"}
+                </span>
+              )}
             </div>
           </div>
 
