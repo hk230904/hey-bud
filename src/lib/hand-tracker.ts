@@ -1,24 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import {
   FilesetResolver,
-  HandLandmarker,
-  type HandLandmarkerResult,
+  GestureRecognizer,
+  type GestureRecognizerResult,
 } from "@mediapipe/tasks-vision";
+
+import type { NormalizedLandmark } from "./asl-classifier";
 
 const WASM_BASE =
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
 const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+  "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task";
 
-let landmarker: HandLandmarker | null = null;
-let initializing: Promise<HandLandmarker> | null = null;
+let recognizer: GestureRecognizer | null = null;
+let initializing: Promise<GestureRecognizer> | null = null;
 
-async function getLandmarker() {
-  if (landmarker) return landmarker;
+async function getRecognizer() {
+  if (recognizer) return recognizer;
   if (initializing) return initializing;
   initializing = (async () => {
     const vision = await FilesetResolver.forVisionTasks(WASM_BASE);
-    const lm = await HandLandmarker.createFromOptions(vision, {
+    const gr = await GestureRecognizer.createFromOptions(vision, {
       baseOptions: {
         modelAssetPath: MODEL_URL,
         delegate: "GPU",
@@ -26,13 +28,12 @@ async function getLandmarker() {
       runningMode: "VIDEO",
       numHands: 2,
     });
-    landmarker = lm;
-    return lm;
+    recognizer = gr;
+    return gr;
   })();
   return initializing;
 }
 
-// MediaPipe hand connection pairs
 const HAND_CONNECTIONS: [number, number][] = [
   [0, 1], [1, 2], [2, 3], [3, 4],
   [0, 5], [5, 6], [6, 7], [7, 8],
@@ -41,11 +42,17 @@ const HAND_CONNECTIONS: [number, number][] = [
   [13, 17], [0, 17], [17, 18], [18, 19], [19, 20],
 ];
 
+export interface HandTrackerResult {
+  handDetected: boolean;
+  landmarks: NormalizedLandmark[] | null;
+  gesture: { name: string; score: number } | null;
+}
+
 interface UseHandTrackerOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   enabled: boolean;
-  onResult?: (handDetected: boolean) => void;
+  onResult?: (r: HandTrackerResult) => void;
 }
 
 export function useHandTracker({
@@ -54,9 +61,9 @@ export function useHandTracker({
   enabled,
   onResult,
 }: UseHandTrackerOptions) {
-  const [status, setStatus] = useState<
-    "idle" | "loading" | "ready" | "error"
-  >("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
+    "idle",
+  );
   const [error, setError] = useState<string | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef(-1);
@@ -68,8 +75,8 @@ export function useHandTracker({
     const loop = () => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      const lm = landmarker;
-      if (!video || !canvas || !lm) {
+      const rec = recognizer;
+      if (!video || !canvas || !rec) {
         rafRef.current = requestAnimationFrame(loop);
         return;
       }
@@ -82,12 +89,23 @@ export function useHandTracker({
           if (video.currentTime !== lastVideoTimeRef.current) {
             lastVideoTimeRef.current = video.currentTime;
             try {
-              const result: HandLandmarkerResult = lm.detectForVideo(
+              const result: GestureRecognizerResult = rec.recognizeForVideo(
                 video,
                 performance.now(),
               );
-              drawResults(ctx, result, canvas.width, canvas.height);
-              onResult?.(result.landmarks.length > 0);
+              drawResults(ctx, result.landmarks, canvas.width, canvas.height);
+              const hand = result.landmarks.length > 0;
+              const top = result.gestures?.[0]?.[0];
+              onResult?.({
+                handDetected: hand,
+                landmarks: hand
+                  ? (result.landmarks[0] as NormalizedLandmark[])
+                  : null,
+                gesture:
+                  top && top.categoryName && top.categoryName !== "None"
+                    ? { name: top.categoryName, score: top.score }
+                    : null,
+              });
             } catch {
               /* ignore single-frame failures */
             }
@@ -100,7 +118,7 @@ export function useHandTracker({
     (async () => {
       try {
         setStatus("loading");
-        await getLandmarker();
+        await getRecognizer();
         if (cancelled) return;
         setStatus("ready");
         loop();
@@ -124,7 +142,7 @@ export function useHandTracker({
 
 function drawResults(
   ctx: CanvasRenderingContext2D,
-  result: HandLandmarkerResult,
+  landmarksList: { x: number; y: number; z: number }[][],
   w: number,
   h: number,
 ) {
@@ -134,7 +152,7 @@ function drawResults(
   const chart2 =
     getComputedStyle(document.documentElement).getPropertyValue("--chart-2") ||
     "oklch(0.65 0.15 180)";
-  for (const landmarks of result.landmarks) {
+  for (const landmarks of landmarksList) {
     ctx.strokeStyle = primary;
     ctx.lineWidth = 3;
     ctx.lineCap = "round";

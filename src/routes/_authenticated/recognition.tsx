@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format } from "date-fns";
 import {
@@ -10,6 +10,8 @@ import {
   CircleAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import type { NormalizedLandmark } from "@/lib/asl-classifier";
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -40,21 +42,28 @@ function RecognitionPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const handDetectedRef = useRef(false);
+  const latestFrameRef = useRef<{
+    landmarks: NormalizedLandmark[] | null;
+    gesture: { name: string; score: number } | null;
+  }>({ landmarks: null, gesture: null });
 
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [session, setSession] = useState<RecognitionSession | null>(null);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [current, setCurrent] = useState<Prediction | null>(null);
+  const [currentSource, setCurrentSource] = useState<"mediapipe" | "asl-rule" | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
   const { status: trackerStatus } = useHandTracker({
     videoRef,
     canvasRef,
     enabled: cameraOn,
-    onResult: (detected) => {
-      handDetectedRef.current = detected;
+    onResult: (r) => {
+      latestFrameRef.current = {
+        landmarks: r.landmarks,
+        gesture: r.gesture,
+      };
     },
   });
 
@@ -71,19 +80,25 @@ function RecognitionPage() {
     if (!cameraOn || !session || !user) return;
     let cancelled = false;
     const loop = async () => {
+      let lastLabel = "";
       while (!cancelled) {
-        await new Promise((r) => setTimeout(r, 1200));
+        await new Promise((r) => setTimeout(r, 800));
         if (cancelled) break;
-        const handDetected = handDetectedRef.current;
+        const frame = latestFrameRef.current;
         const pred = await predict({
           userId: user.id,
           sessionId: session.id,
-          handDetected,
+          landmarks: frame.landmarks,
+          gesture: frame.gesture,
         });
         if (cancelled) break;
         if (pred) {
+          // Avoid spamming identical consecutive predictions
+          if (pred.gesture === lastLabel) continue;
+          lastLabel = pred.gesture;
           const saved = await savePrediction(user.id, session.id, pred);
           setCurrent(saved);
+          setCurrentSource(pred.source);
           setPredictions((prev) => [saved, ...prev]);
           qc.invalidateQueries({ queryKey: ["history", user.id] });
           qc.invalidateQueries({ queryKey: ["analytics", user.id] });
@@ -277,10 +292,17 @@ function RecognitionPage() {
               </div>
               <Progress value={current ? current.confidence * 100 : 0} />
             </div>
-            <div className="mt-3 text-xs text-muted-foreground">
-              {current
-                ? `Processed in ${current.processingTimeMs.toFixed(0)} ms`
-                : "Awaiting hand detection…"}
+            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {current
+                  ? `Processed in ${current.processingTimeMs.toFixed(0)} ms`
+                  : "Awaiting hand detection…"}
+              </span>
+              {currentSource && (
+                <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+                  {currentSource === "mediapipe" ? "Model" : "ASL rule"}
+                </span>
+              )}
             </div>
           </div>
 
