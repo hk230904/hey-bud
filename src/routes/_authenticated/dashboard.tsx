@@ -156,7 +156,7 @@ function DashboardPage() {
           <div className="mt-4 space-y-4 text-sm">
             <StatusRow label="Recognition engine" value="Operational" tone="success" />
             <StatusRow label="Camera access" value="Ready" tone="success" />
-            <StatusRow label="AI model" value="Mock (v0.1)" tone="info" />
+            <StatusRow label="AI model" value="MediaPipe + ASL" tone="success" />
             <div>
               <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
                 <span>Avg confidence</span>
