@@ -132,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateProfile = useCallback(
     async (patch: { fullName?: string; avatarUrl?: string }) => {
       if (!user) throw new Error("Not signed in");
-      const update: Record<string, string | null> = {};
+      const update: { full_name?: string; avatar_url?: string | null } = {};
       if (patch.fullName !== undefined) update.full_name = patch.fullName;
       if (patch.avatarUrl !== undefined) update.avatar_url = patch.avatarUrl;
       const { error } = await supabase
