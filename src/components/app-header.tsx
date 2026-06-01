@@ -27,6 +27,12 @@ export function AppHeader() {
     .join("")
     .toUpperCase();
 
+  const handleLogout = async () => {
+    await logout();
+    notify.success("Signed out");
+    navigate({ to: "/login" });
+  };
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur sm:px-4">
       <SidebarTrigger className="-ml-1" />
@@ -73,13 +79,7 @@ export function AppHeader() {
               <Link to="/feedback">Feedback</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => {
-                logout();
-                notify.success("Signed out");
-                navigate({ to: "/login" });
-              }}
-            >
+            <DropdownMenuItem onSelect={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
               Sign out
             </DropdownMenuItem>

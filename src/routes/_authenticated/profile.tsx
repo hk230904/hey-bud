@@ -21,21 +21,19 @@ export const Route = createFileRoute("/_authenticated/profile")({
 });
 
 function ProfilePage() {
-  const { user, updateProfile, changePassword } = useAuth();
+  const { user, updateProfile, updatePassword } = useAuth();
   const { data: analytics } = useQuery({
     queryKey: ["analytics", user!.id],
     queryFn: () => getAnalytics(user!.id),
   });
 
   const [fullName, setFullName] = useState(user?.fullName ?? "");
-  const [email, setEmail] = useState(user?.email ?? "");
-  const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
 
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await updateProfile({ fullName, email });
+      await updateProfile({ fullName });
       notify.success("Profile updated");
     } catch (err) {
       notify.error("Update failed", (err as Error).message);
@@ -49,8 +47,7 @@ function ProfilePage() {
       return;
     }
     try {
-      await changePassword(oldPw, newPw);
-      setOldPw("");
+      await updatePassword(newPw);
       setNewPw("");
       notify.success("Password changed");
     } catch (err) {
@@ -69,9 +66,8 @@ function ProfilePage() {
         <div className="rounded-2xl border bg-card p-5">
           <h2 className="text-sm font-semibold text-muted-foreground">Account</h2>
           <dl className="mt-3 space-y-2 text-sm">
-            <div className="flex justify-between"><dt className="text-muted-foreground">Role</dt><dd className="font-medium capitalize">{user?.role}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted-foreground">Email</dt><dd className="font-medium truncate ml-2">{user?.email}</dd></div>
             <div className="flex justify-between"><dt className="text-muted-foreground">Joined</dt><dd>{user && format(new Date(user.createdAt), "MMM d, yyyy")}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">Last login</dt><dd>{user?.lastLogin ? format(new Date(user.lastLogin), "MMM d, p") : "—"}</dd></div>
           </dl>
         </div>
         <div className="rounded-2xl border bg-card p-5">
@@ -99,7 +95,8 @@ function ProfilePage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input id="email" type="email" value={user?.email ?? ""} disabled />
+            <p className="text-xs text-muted-foreground">Email cannot be changed.</p>
           </div>
         </div>
         <Button type="submit">Save changes</Button>
@@ -107,15 +104,15 @@ function ProfilePage() {
 
       <form onSubmit={savePw} className="rounded-2xl border bg-card p-6 space-y-4">
         <h2 className="text-base font-semibold">Change password</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="oldPw">Current password</Label>
-            <Input id="oldPw" type="password" value={oldPw} onChange={(e) => setOldPw(e.target.value)} autoComplete="current-password" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="newPw">New password</Label>
-            <Input id="newPw" type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
-          </div>
+        <div className="space-y-2 sm:max-w-sm">
+          <Label htmlFor="newPw">New password</Label>
+          <Input
+            id="newPw"
+            type="password"
+            value={newPw}
+            onChange={(e) => setNewPw(e.target.value)}
+            autoComplete="new-password"
+          />
         </div>
         <Button type="submit">Update password</Button>
       </form>

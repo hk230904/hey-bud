@@ -21,12 +21,6 @@ import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
-import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/_admin'
-import { Route as AuthenticatedAdminAdminRouteImport } from './routes/_authenticated/_admin/admin'
-import { Route as AuthenticatedAdminAdminUsersRouteImport } from './routes/_authenticated/_admin/admin.users'
-import { Route as AuthenticatedAdminAdminPredictionsRouteImport } from './routes/_authenticated/_admin/admin.predictions'
-import { Route as AuthenticatedAdminAdminLogsRouteImport } from './routes/_authenticated/_admin/admin.logs'
-import { Route as AuthenticatedAdminAdminFeedbackRouteImport } from './routes/_authenticated/_admin/admin.feedback'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -88,39 +82,6 @@ const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
-  id: '/_admin',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedAdminAdminRoute = AuthenticatedAdminAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
-const AuthenticatedAdminAdminUsersRoute =
-  AuthenticatedAdminAdminUsersRouteImport.update({
-    id: '/users',
-    path: '/users',
-    getParentRoute: () => AuthenticatedAdminAdminRoute,
-  } as any)
-const AuthenticatedAdminAdminPredictionsRoute =
-  AuthenticatedAdminAdminPredictionsRouteImport.update({
-    id: '/predictions',
-    path: '/predictions',
-    getParentRoute: () => AuthenticatedAdminAdminRoute,
-  } as any)
-const AuthenticatedAdminAdminLogsRoute =
-  AuthenticatedAdminAdminLogsRouteImport.update({
-    id: '/logs',
-    path: '/logs',
-    getParentRoute: () => AuthenticatedAdminAdminRoute,
-  } as any)
-const AuthenticatedAdminAdminFeedbackRoute =
-  AuthenticatedAdminAdminFeedbackRouteImport.update({
-    id: '/feedback',
-    path: '/feedback',
-    getParentRoute: () => AuthenticatedAdminAdminRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -134,11 +95,6 @@ export interface FileRoutesByFullPath {
   '/history': typeof AuthenticatedHistoryRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/recognition': typeof AuthenticatedRecognitionRoute
-  '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
-  '/admin/feedback': typeof AuthenticatedAdminAdminFeedbackRoute
-  '/admin/logs': typeof AuthenticatedAdminAdminLogsRoute
-  '/admin/predictions': typeof AuthenticatedAdminAdminPredictionsRoute
-  '/admin/users': typeof AuthenticatedAdminAdminUsersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -152,11 +108,6 @@ export interface FileRoutesByTo {
   '/history': typeof AuthenticatedHistoryRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/recognition': typeof AuthenticatedRecognitionRoute
-  '/admin': typeof AuthenticatedAdminAdminRouteWithChildren
-  '/admin/feedback': typeof AuthenticatedAdminAdminFeedbackRoute
-  '/admin/logs': typeof AuthenticatedAdminAdminLogsRoute
-  '/admin/predictions': typeof AuthenticatedAdminAdminPredictionsRoute
-  '/admin/users': typeof AuthenticatedAdminAdminUsersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -166,18 +117,12 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/_authenticated/_admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
   '/_authenticated/history': typeof AuthenticatedHistoryRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/recognition': typeof AuthenticatedRecognitionRoute
-  '/_authenticated/_admin/admin': typeof AuthenticatedAdminAdminRouteWithChildren
-  '/_authenticated/_admin/admin/feedback': typeof AuthenticatedAdminAdminFeedbackRoute
-  '/_authenticated/_admin/admin/logs': typeof AuthenticatedAdminAdminLogsRoute
-  '/_authenticated/_admin/admin/predictions': typeof AuthenticatedAdminAdminPredictionsRoute
-  '/_authenticated/_admin/admin/users': typeof AuthenticatedAdminAdminUsersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -193,11 +138,6 @@ export interface FileRouteTypes {
     | '/history'
     | '/profile'
     | '/recognition'
-    | '/admin'
-    | '/admin/feedback'
-    | '/admin/logs'
-    | '/admin/predictions'
-    | '/admin/users'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -211,11 +151,6 @@ export interface FileRouteTypes {
     | '/history'
     | '/profile'
     | '/recognition'
-    | '/admin'
-    | '/admin/feedback'
-    | '/admin/logs'
-    | '/admin/predictions'
-    | '/admin/users'
   id:
     | '__root__'
     | '/'
@@ -224,18 +159,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
-    | '/_authenticated/_admin'
     | '/_authenticated/analytics'
     | '/_authenticated/dashboard'
     | '/_authenticated/feedback'
     | '/_authenticated/history'
     | '/_authenticated/profile'
     | '/_authenticated/recognition'
-    | '/_authenticated/_admin/admin'
-    | '/_authenticated/_admin/admin/feedback'
-    | '/_authenticated/_admin/admin/logs'
-    | '/_authenticated/_admin/admin/predictions'
-    | '/_authenticated/_admin/admin/users'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -333,85 +262,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/_admin': {
-      id: '/_authenticated/_admin'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedAdminRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/_admin/admin': {
-      id: '/_authenticated/_admin/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AuthenticatedAdminAdminRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/_admin/admin/users': {
-      id: '/_authenticated/_admin/admin/users'
-      path: '/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof AuthenticatedAdminAdminUsersRouteImport
-      parentRoute: typeof AuthenticatedAdminAdminRoute
-    }
-    '/_authenticated/_admin/admin/predictions': {
-      id: '/_authenticated/_admin/admin/predictions'
-      path: '/predictions'
-      fullPath: '/admin/predictions'
-      preLoaderRoute: typeof AuthenticatedAdminAdminPredictionsRouteImport
-      parentRoute: typeof AuthenticatedAdminAdminRoute
-    }
-    '/_authenticated/_admin/admin/logs': {
-      id: '/_authenticated/_admin/admin/logs'
-      path: '/logs'
-      fullPath: '/admin/logs'
-      preLoaderRoute: typeof AuthenticatedAdminAdminLogsRouteImport
-      parentRoute: typeof AuthenticatedAdminAdminRoute
-    }
-    '/_authenticated/_admin/admin/feedback': {
-      id: '/_authenticated/_admin/admin/feedback'
-      path: '/feedback'
-      fullPath: '/admin/feedback'
-      preLoaderRoute: typeof AuthenticatedAdminAdminFeedbackRouteImport
-      parentRoute: typeof AuthenticatedAdminAdminRoute
-    }
   }
 }
-
-interface AuthenticatedAdminAdminRouteChildren {
-  AuthenticatedAdminAdminFeedbackRoute: typeof AuthenticatedAdminAdminFeedbackRoute
-  AuthenticatedAdminAdminLogsRoute: typeof AuthenticatedAdminAdminLogsRoute
-  AuthenticatedAdminAdminPredictionsRoute: typeof AuthenticatedAdminAdminPredictionsRoute
-  AuthenticatedAdminAdminUsersRoute: typeof AuthenticatedAdminAdminUsersRoute
-}
-
-const AuthenticatedAdminAdminRouteChildren: AuthenticatedAdminAdminRouteChildren =
-  {
-    AuthenticatedAdminAdminFeedbackRoute: AuthenticatedAdminAdminFeedbackRoute,
-    AuthenticatedAdminAdminLogsRoute: AuthenticatedAdminAdminLogsRoute,
-    AuthenticatedAdminAdminPredictionsRoute:
-      AuthenticatedAdminAdminPredictionsRoute,
-    AuthenticatedAdminAdminUsersRoute: AuthenticatedAdminAdminUsersRoute,
-  }
-
-const AuthenticatedAdminAdminRouteWithChildren =
-  AuthenticatedAdminAdminRoute._addFileChildren(
-    AuthenticatedAdminAdminRouteChildren,
-  )
-
-interface AuthenticatedAdminRouteChildren {
-  AuthenticatedAdminAdminRoute: typeof AuthenticatedAdminAdminRouteWithChildren
-}
-
-const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
-  AuthenticatedAdminAdminRoute: AuthenticatedAdminAdminRouteWithChildren,
-}
-
-const AuthenticatedAdminRouteWithChildren =
-  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
@@ -421,7 +275,6 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,
@@ -445,3 +298,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

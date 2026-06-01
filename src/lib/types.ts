@@ -1,24 +1,22 @@
-export type UserRole = "user" | "admin";
-
 export interface User {
   id: string;
-  fullName: string;
   email: string;
-  passwordHash: string;
-  role: UserRole;
+  fullName: string;
+  avatarUrl: string | null;
   createdAt: string;
-  lastLogin: string | null;
 }
 
 export interface Prediction {
   id: string;
   userId: string;
-  gesture: string;
-  text: string;
-  confidence: number;
-  timestamp: string;
-  processingTimeMs: number;
   sessionId: string | null;
+  gesture: string;
+  gestureType: string; // "MediaPipe Gesture" | "ASL Letter"
+  text: string; // friendly text for caption; derived from gesture
+  confidence: number;
+  source: "mediapipe" | "asl-rule";
+  processingTimeMs: number;
+  timestamp: string;
 }
 
 export interface RecognitionSession {
@@ -36,13 +34,5 @@ export interface Feedback {
   message: string;
   rating: number;
   category: "general" | "issue" | "feature";
-  timestamp: string;
-}
-
-export interface SystemLog {
-  id: string;
-  eventType: "auth" | "prediction" | "session" | "feedback" | "admin" | "error";
-  description: string;
-  userId?: string | null;
   timestamp: string;
 }
