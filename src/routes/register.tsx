@@ -1,5 +1,5 @@
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { notify } from "@/lib/notify";
-import { sessionRepo } from "@/lib/storage";
 import { AuthShell } from "./login";
 
 const registerSchema = z.object({
@@ -17,10 +16,6 @@ const registerSchema = z.object({
 });
 
 export const Route = createFileRoute("/register")({
-  beforeLoad: () => {
-    if (typeof window === "undefined") return;
-    if (sessionRepo.current()) throw redirect({ to: "/dashboard" });
-  },
   head: () => ({
     meta: [
       { title: "Create account — SignSense" },
@@ -31,13 +26,17 @@ export const Route = createFileRoute("/register")({
 });
 
 function RegisterPage() {
-  const { register } = useAuth();
+  const { register, user } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (user) navigate({ to: "/dashboard" });
+  }, [user, navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +52,6 @@ function RegisterPage() {
     try {
       await register(parsed.data.fullName, parsed.data.email, parsed.data.password);
       notify.success("Account created", "Welcome to SignSense");
-      navigate({ to: "/dashboard" });
     } catch (err) {
       notify.error("Could not create account", (err as Error).message);
     } finally {

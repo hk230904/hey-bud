@@ -1,5 +1,5 @@
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Hand } from "lucide-react";
 
@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { notify } from "@/lib/notify";
-import { sessionRepo } from "@/lib/storage";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Enter a valid email").max(255),
@@ -19,10 +18,6 @@ export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>) => ({
     redirect: typeof s.redirect === "string" ? s.redirect : "/dashboard",
   }),
-  beforeLoad: ({ search }) => {
-    if (typeof window === "undefined") return;
-    if (sessionRepo.current()) throw redirect({ to: search.redirect });
-  },
   head: () => ({
     meta: [
       { title: "Sign in — SignSense" },
@@ -33,13 +28,17 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const [email, setEmail] = useState("demo@demo.local");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (user) navigate({ to: search.redirect });
+  }, [user, search.redirect, navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +56,6 @@ function LoginPage() {
     try {
       await login(parsed.data.email, parsed.data.password);
       notify.success("Welcome back");
-      navigate({ to: search.redirect });
     } catch (err) {
       notify.error("Sign-in failed", (err as Error).message);
     } finally {

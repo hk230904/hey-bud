@@ -1,20 +1,14 @@
 /**
- * Centralized API service layer.
+ * Recognition service layer (Supabase-backed).
  *
- * Real in-browser gesture recognition:
+ * Real in-browser gesture recognition (unchanged):
  *  - MediaPipe GestureRecognizer (pretrained) for common gestures
  *  - Rule-based ASL letter classifier on hand landmarks
  *
- * Swap these implementations with `fetch()` calls later without changing call sites.
+ * Persistence is via Supabase tables: predictions, recognition_sessions, feedback.
  */
 import { classifyAsl, type NormalizedLandmark } from "@/lib/asl-classifier";
-import {
-  feedbackRepo,
-  logsRepo,
-  predictionsRepo,
-  recSessionsRepo,
-  uid,
-} from "@/lib/storage";
+import { supabase } from "@/integrations/supabase/client";
 import type { Feedback, Prediction, RecognitionSession } from "@/lib/types";
 
 /** Friendly labels for the MediaPipe pretrained categories. */
@@ -28,7 +22,6 @@ const MEDIAPIPE_LABELS: Record<string, { gesture: string; text: string }> = {
   ILoveYou: { gesture: "I love you", text: "I love you" },
 };
 
-/** Surfaced to the Dashboard "Supported gestures" card. */
 export const SUPPORTED_GESTURES = [
   { gesture: "Hello", text: "Hello" },
   { gesture: "Thumbs Up", text: "Yes" },
@@ -51,6 +44,7 @@ export interface PredictRequest {
 
 export interface PredictResponse {
   gesture: string;
+  gestureType: string;
   text: string;
   confidence: number;
   processingTimeMs: number;
@@ -69,9 +63,7 @@ export async function predict(
   let mp: { gesture: string; text: string; confidence: number } | null = null;
   if (req.gesture && req.gesture.score >= MIN_CONFIDENCE) {
     const mapped = MEDIAPIPE_LABELS[req.gesture.name];
-    if (mapped) {
-      mp = { ...mapped, confidence: +req.gesture.score.toFixed(3) };
-    }
+    if (mapped) mp = { ...mapped, confidence: +req.gesture.score.toFixed(3) };
   }
 
   // Layer 2: rule-based ASL letter
@@ -79,87 +71,159 @@ export async function predict(
   if (req.landmarks) {
     const r = classifyAsl(req.landmarks);
     if (r && r.confidence >= MIN_CONFIDENCE) {
-      asl = {
-        gesture: `ASL ${r.letter}`,
-        text: r.letter,
-        confidence: r.confidence,
-      };
+      asl = { gesture: `ASL ${r.letter}`, text: r.letter, confidence: r.confidence };
     }
   }
 
-  // Pick best — small bias to MediaPipe on ties
   let chosen: typeof mp = null;
   let source: PredictResponse["source"] = "mediapipe";
   if (mp && asl) {
-    if (mp.confidence + 0.02 >= asl.confidence) {
-      chosen = mp;
-      source = "mediapipe";
-    } else {
-      chosen = asl;
-      source = "asl-rule";
-    }
-  } else if (mp) {
-    chosen = mp;
-    source = "mediapipe";
-  } else if (asl) {
-    chosen = asl;
-    source = "asl-rule";
-  }
+    if (mp.confidence + 0.02 >= asl.confidence) { chosen = mp; source = "mediapipe"; }
+    else { chosen = asl; source = "asl-rule"; }
+  } else if (mp) { chosen = mp; source = "mediapipe"; }
+  else if (asl) { chosen = asl; source = "asl-rule"; }
 
   if (!chosen) return null;
   return {
     ...chosen,
+    gestureType: source === "mediapipe" ? "MediaPipe Gesture" : "ASL Letter",
     processingTimeMs: +(performance.now() - start).toFixed(1),
     source,
   };
 }
 
+// ---------- Mappers ----------
+type PredictionRow = {
+  id: string;
+  user_id: string;
+  session_id: string | null;
+  gesture: string;
+  gesture_type: string;
+  confidence: number;
+  source: string;
+  processing_time: number;
+  created_at: string;
+};
+
+function rowToPrediction(r: PredictionRow): Prediction {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    sessionId: r.session_id,
+    gesture: r.gesture,
+    gestureType: r.gesture_type,
+    text: r.gesture.startsWith("ASL ") ? r.gesture.slice(4) : r.gesture,
+    confidence: Number(r.confidence),
+    source: r.source as "mediapipe" | "asl-rule",
+    processingTimeMs: Number(r.processing_time),
+    timestamp: r.created_at,
+  };
+}
+
+// ---------- Predictions ----------
 export async function savePrediction(
   userId: string,
   sessionId: string | null,
   pred: PredictResponse,
 ): Promise<Prediction> {
-  const record: Prediction = {
-    id: uid(),
-    userId,
-    sessionId,
-    gesture: pred.gesture,
-    text: pred.text,
-    confidence: pred.confidence,
-    processingTimeMs: pred.processingTimeMs,
-    timestamp: new Date().toISOString(),
-  };
-  predictionsRepo.add(record);
-  logsRepo.add({
-    eventType: "prediction",
-    description: `Prediction "${pred.gesture}" (${(pred.confidence * 100).toFixed(0)}%)`,
-    userId,
-  });
-  return record;
+  const { data, error } = await supabase
+    .from("predictions")
+    .insert({
+      user_id: userId,
+      session_id: sessionId,
+      gesture: pred.gesture,
+      gesture_type: pred.gestureType,
+      confidence: pred.confidence,
+      source: pred.source,
+      processing_time: pred.processingTimeMs,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return rowToPrediction(data as PredictionRow);
 }
 
 export async function getHistory(userId: string): Promise<Prediction[]> {
-  return predictionsRepo.forUser(userId);
+  const { data, error } = await supabase
+    .from("predictions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  if (error) throw new Error(error.message);
+  return (data as PredictionRow[]).map(rowToPrediction);
 }
 
-export async function getAllHistory(): Promise<Prediction[]> {
-  return predictionsRepo.all();
+// ---------- Sessions ----------
+export async function startSession(userId: string): Promise<RecognitionSession> {
+  const { data, error } = await supabase
+    .from("recognition_sessions")
+    .insert({ user_id: userId })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return {
+    id: data.id,
+    userId: data.user_id,
+    startedAt: data.session_start,
+    endedAt: data.session_end,
+    totalPredictions: data.total_predictions,
+    averageConfidence: Number(data.average_confidence),
+  };
 }
 
+export async function endSession(
+  session: RecognitionSession,
+  predictions: Prediction[],
+): Promise<RecognitionSession> {
+  const avg =
+    predictions.length === 0
+      ? 0
+      : +(
+          predictions.reduce((s, p) => s + p.confidence, 0) / predictions.length
+        ).toFixed(4);
+  const endedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("recognition_sessions")
+    .update({
+      session_end: endedAt,
+      total_predictions: predictions.length,
+      average_confidence: avg,
+    })
+    .eq("id", session.id);
+  if (error) throw new Error(error.message);
+  return {
+    ...session,
+    endedAt,
+    totalPredictions: predictions.length,
+    averageConfidence: avg,
+  };
+}
+
+// ---------- Analytics ----------
 export async function getAnalytics(userId: string) {
-  const preds = predictionsRepo.forUser(userId);
-  const sessions = recSessionsRepo.forUser(userId);
-  return computeAnalytics(preds, sessions);
-}
+  const [predRes, sessRes] = await Promise.all([
+    supabase
+      .from("predictions")
+      .select("gesture, confidence, processing_time, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(5000),
+    supabase
+      .from("recognition_sessions")
+      .select("id")
+      .eq("user_id", userId),
+  ]);
+  if (predRes.error) throw new Error(predRes.error.message);
+  if (sessRes.error) throw new Error(sessRes.error.message);
 
-export async function getGlobalAnalytics() {
-  return computeAnalytics(predictionsRepo.all(), recSessionsRepo.all());
-}
+  const preds = (predRes.data ?? []).map((p) => ({
+    gesture: p.gesture as string,
+    confidence: Number(p.confidence),
+    processingTimeMs: Number(p.processing_time),
+    timestamp: p.created_at as string,
+  }));
 
-function computeAnalytics(
-  preds: Prediction[],
-  sessions: RecognitionSession[],
-) {
   const today = new Date().toISOString().slice(0, 10);
   const todayCount = preds.filter((p) => p.timestamp.startsWith(today)).length;
   const avgConfidence =
@@ -209,6 +273,7 @@ function computeAnalytics(
   ];
   for (const p of preds) {
     const c = p.confidence * 100;
+    if (c < 70) continue;
     const idx = Math.min(5, Math.max(0, Math.floor((c - 70) / 5)));
     confidenceBuckets[idx].count++;
   }
@@ -218,65 +283,51 @@ function computeAnalytics(
     todayPredictions: todayCount,
     averageConfidence: +avgConfidence.toFixed(3),
     averageProcessingMs: +avgProcessing.toFixed(1),
-    totalSessions: sessions.length,
+    totalSessions: sessRes.data?.length ?? 0,
     days,
     topGestures,
     confidenceBuckets,
   };
 }
 
-export async function startSession(userId: string): Promise<RecognitionSession> {
-  const s: RecognitionSession = {
-    id: uid(),
-    userId,
-    startedAt: new Date().toISOString(),
-    endedAt: null,
-    totalPredictions: 0,
-    averageConfidence: 0,
-  };
-  recSessionsRepo.upsert(s);
-  logsRepo.add({ eventType: "session", description: "Session started", userId });
-  return s;
-}
-
-export async function endSession(
-  session: RecognitionSession,
-  predictions: Prediction[],
-): Promise<RecognitionSession> {
-  const updated: RecognitionSession = {
-    ...session,
-    endedAt: new Date().toISOString(),
-    totalPredictions: predictions.length,
-    averageConfidence:
-      predictions.length === 0
-        ? 0
-        : +(
-            predictions.reduce((s, p) => s + p.confidence, 0) /
-            predictions.length
-          ).toFixed(3),
-  };
-  recSessionsRepo.upsert(updated);
-  logsRepo.add({
-    eventType: "session",
-    description: `Session ended (${predictions.length} predictions)`,
-    userId: session.userId,
-  });
-  return updated;
-}
-
+// ---------- Feedback ----------
 export async function submitFeedback(
   feedback: Omit<Feedback, "id" | "timestamp">,
 ): Promise<Feedback> {
-  const f: Feedback = {
-    ...feedback,
-    id: uid(),
-    timestamp: new Date().toISOString(),
+  const { data, error } = await supabase
+    .from("feedback")
+    .insert({
+      user_id: feedback.userId,
+      message: feedback.message,
+      rating: feedback.rating,
+      category: feedback.category,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return {
+    id: data.id,
+    userId: data.user_id,
+    message: data.message,
+    rating: data.rating,
+    category: data.category as Feedback["category"],
+    timestamp: data.created_at,
   };
-  feedbackRepo.add(f);
-  logsRepo.add({
-    eventType: "feedback",
-    description: `Feedback submitted (${feedback.rating}★, ${feedback.category})`,
-    userId: feedback.userId,
-  });
-  return f;
+}
+
+export async function getMyFeedback(userId: string): Promise<Feedback[]> {
+  const { data, error } = await supabase
+    .from("feedback")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    message: r.message,
+    rating: r.rating,
+    category: r.category as Feedback["category"],
+    timestamp: r.created_at,
+  }));
 }

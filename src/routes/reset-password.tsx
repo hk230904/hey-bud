@@ -9,9 +9,6 @@ import { notify } from "@/lib/notify";
 import { AuthShell } from "./login";
 
 export const Route = createFileRoute("/reset-password")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    token: typeof s.token === "string" ? s.token : "",
-  }),
   head: () => ({
     meta: [
       { title: "Set new password — SignSense" },
@@ -22,8 +19,7 @@ export const Route = createFileRoute("/reset-password")({
 });
 
 function ResetPage() {
-  const { token } = Route.useSearch();
-  const { resetPassword } = useAuth();
+  const { updatePassword } = useAuth();
   const navigate = useNavigate();
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
@@ -38,28 +34,15 @@ function ResetPage() {
     }
     setSubmitting(true);
     try {
-      await resetPassword(token, pw);
+      await updatePassword(pw);
       notify.success("Password updated");
-      navigate({ to: "/login" });
+      navigate({ to: "/dashboard" });
     } catch (e) {
       notify.error("Could not reset password", (e as Error).message);
     } finally {
       setSubmitting(false);
     }
   };
-
-  if (!token) {
-    return (
-      <AuthShell title="Invalid reset link">
-        <p className="text-sm text-muted-foreground">
-          This reset link is missing or invalid.
-        </p>
-        <Button asChild className="mt-4 w-full">
-          <Link to="/forgot-password">Request a new link</Link>
-        </Button>
-      </AuthShell>
-    );
-  }
 
   return (
     <AuthShell title="Set a new password" subtitle="Choose a strong password you'll remember.">
@@ -80,6 +63,11 @@ function ResetPage() {
         <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? "Updating…" : "Update password"}
         </Button>
+        <p className="text-center text-sm text-muted-foreground">
+          <Link to="/login" className="font-medium text-primary hover:underline">
+            Back to sign in
+          </Link>
+        </p>
       </form>
     </AuthShell>
   );

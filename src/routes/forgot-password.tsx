@@ -13,7 +13,7 @@ export const Route = createFileRoute("/forgot-password")({
   head: () => ({
     meta: [
       { title: "Reset password — SignSense" },
-      { name: "description", content: "Request a password reset link." },
+      { name: "description", content: "Request a password reset email." },
     ],
   }),
   component: ForgotPage,
@@ -22,8 +22,9 @@ export const Route = createFileRoute("/forgot-password")({
 function ForgotPage() {
   const { requestPasswordReset } = useAuth();
   const [email, setEmail] = useState("");
-  const [link, setLink] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
   const [err, setErr] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,18 +34,20 @@ function ForgotPage() {
       setErr("Enter a valid email");
       return;
     }
+    setSubmitting(true);
     try {
-      const token = await requestPasswordReset(parsed.data);
-      const url = `${window.location.origin}/reset-password?token=${token}`;
-      setLink(url);
-      notify.success("Reset link generated");
+      await requestPasswordReset(parsed.data);
+      setSent(true);
+      notify.success("Reset email sent", "Check your inbox for the link");
     } catch (e) {
-      notify.error("Unable to reset", (e as Error).message);
+      notify.error("Unable to send reset email", (e as Error).message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <AuthShell title="Forgot your password?" subtitle="We'll generate a reset link for you.">
+    <AuthShell title="Forgot your password?" subtitle="We'll email you a reset link.">
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
@@ -58,13 +61,12 @@ function ForgotPage() {
           />
           {err && <p id="email-error" className="text-xs text-destructive">{err}</p>}
         </div>
-        <Button type="submit" className="w-full">Generate reset link</Button>
-        {link && (
+        <Button type="submit" className="w-full" disabled={submitting}>
+          {submitting ? "Sending…" : "Send reset email"}
+        </Button>
+        {sent && (
           <div className="rounded-md border bg-muted/50 p-3 text-xs">
-            <p className="mb-2 font-medium text-foreground">Demo mode — your link:</p>
-            <Link to="/reset-password" search={{ token: link.split("token=")[1] }} className="break-all text-primary underline">
-              {link}
-            </Link>
+            If an account exists for <strong>{email}</strong>, a reset link is on its way.
           </div>
         )}
         <p className="text-center text-sm text-muted-foreground">

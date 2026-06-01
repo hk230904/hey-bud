@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { Star } from "lucide-react";
@@ -15,8 +16,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { notify } from "@/lib/notify";
-import { feedbackRepo } from "@/lib/storage";
-import { submitFeedback } from "@/services/recognitionApi";
+import { getMyFeedback, submitFeedback } from "@/services/recognitionApi";
 
 export const Route = createFileRoute("/_authenticated/feedback")({
   head: () => ({
@@ -30,11 +30,16 @@ export const Route = createFileRoute("/_authenticated/feedback")({
 
 function FeedbackPage() {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const [rating, setRating] = useState(5);
   const [message, setMessage] = useState("");
   const [category, setCategory] = useState<"general" | "issue" | "feature">("general");
   const [submitting, setSubmitting] = useState(false);
-  const [mine, setMine] = useState(() => (user ? feedbackRepo.forUser(user.id) : []));
+
+  const { data: mine = [] } = useQuery({
+    queryKey: ["feedback", user!.id],
+    queryFn: () => getMyFeedback(user!.id),
+  });
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,8 +54,10 @@ function FeedbackPage() {
       setMessage("");
       setRating(5);
       setCategory("general");
-      setMine(feedbackRepo.forUser(user.id));
+      qc.invalidateQueries({ queryKey: ["feedback", user.id] });
       notify.success("Thanks for the feedback!");
+    } catch (err) {
+      notify.error("Could not submit", (err as Error).message);
     } finally {
       setSubmitting(false);
     }

@@ -1,31 +1,37 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { sessionRepo, usersRepo } from "@/lib/storage";
+import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/_authenticated")({
-  beforeLoad: ({ location }) => {
-    if (typeof window === "undefined") return;
-    const id = sessionRepo.current();
-    const user = id ? usersRepo.findById(id) : null;
-    if (!user) {
-      throw redirect({
-        to: "/login",
-        search: { redirect: location.href },
-      });
-    }
-  },
   component: AuthenticatedLayout,
 });
 
 function AuthenticatedLayout() {
-  // Avoid SSR/client mismatch since sidebar reads cookies/localStorage.
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate({
+        to: "/login",
+        search: { redirect: window.location.pathname },
+      });
+    }
+  }, [loading, user, navigate]);
+
+  if (!mounted || loading || !user) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>

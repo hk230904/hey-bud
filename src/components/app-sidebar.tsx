@@ -6,7 +6,6 @@ import {
   BarChart3,
   User as UserIcon,
   MessageSquare,
-  Shield,
   Sparkles,
 } from "lucide-react";
 
@@ -39,7 +38,7 @@ const accountItems = [
 export function AppSidebar() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const isActive = (url: string) => path === url || path.startsWith(url + "/");
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
 
   return (
     <Sidebar collapsible="icon">
@@ -92,24 +91,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {isAdmin && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Admin</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={path.startsWith("/admin")} tooltip="Admin">
-                    <Link to="/admin">
-                      <Shield className="h-4 w-4" aria-hidden="true" />
-                      <span>Admin Panel</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
       <SidebarFooter>
         <div className="rounded-md border bg-card p-2 text-xs text-muted-foreground">
