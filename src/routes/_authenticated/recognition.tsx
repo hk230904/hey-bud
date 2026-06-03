@@ -358,7 +358,7 @@ function RecognitionPage() {
             {predictions.slice(0, 20).map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-3 p-4">
                 <div>
-                  <div className="text-sm font-medium">{p.gesture}</div>
+                  <div className="text-sm font-medium">{formatGestureName(p.gesture)}</div>
                   <div className="text-xs text-muted-foreground">
                     {format(new Date(p.timestamp), "p")} · {p.processingTimeMs.toFixed(0)} ms
                   </div>
