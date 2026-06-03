@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth-context";
+import { formatGestureName } from "@/lib/utils";
 import { getAnalytics, getHistory } from "@/services/recognitionApi";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -203,7 +204,7 @@ function DashboardPage() {
                     <CheckCircle2 className="h-4 w-4" />
                   </div>
                   <div>
-                    <div className="text-sm font-medium">{p.gesture}</div>
+                    <div className="text-sm font-medium">{formatGestureName(p.gesture)}</div>
                     <div className="text-xs text-muted-foreground">
                       {format(new Date(p.timestamp), "MMM d, p")}
                     </div>

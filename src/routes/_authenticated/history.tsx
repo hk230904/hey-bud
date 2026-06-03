@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/lib/auth-context";
+import { formatGestureName } from "@/lib/utils";
 import { getHistory } from "@/services/recognitionApi";
 
 export const Route = createFileRoute("/_authenticated/history")({
@@ -128,7 +129,7 @@ function HistoryPage() {
             <SelectContent>
               <SelectItem value="all">All gestures</SelectItem>
               {gestures.map((g) => (
-                <SelectItem key={g} value={g}>{g}</SelectItem>
+                <SelectItem key={g} value={g}>{formatGestureName(g)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -167,7 +168,7 @@ function HistoryPage() {
             ) : (
               pageRows.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.gesture}</TableCell>
+                  <TableCell className="font-medium">{formatGestureName(p.gesture)}</TableCell>
                   <TableCell>{p.text}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {(p.confidence * 100).toFixed(1)}%

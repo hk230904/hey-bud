@@ -14,6 +14,7 @@ import {
 } from "recharts";
 
 import { useAuth } from "@/lib/auth-context";
+import { formatGestureName } from "@/lib/utils";
 import { getAnalytics } from "@/services/recognitionApi";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
@@ -88,7 +89,7 @@ function AnalyticsPage() {
           <BarChart data={data?.topGestures ?? []} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
             <XAxis type="number" stroke="var(--color-muted-foreground)" fontSize={12} allowDecimals={false} />
-            <YAxis type="category" dataKey="gesture" stroke="var(--color-muted-foreground)" fontSize={12} width={100} />
+            <YAxis type="category" dataKey="gesture" stroke="var(--color-muted-foreground)" fontSize={12} width={100} tickFormatter={formatGestureName} />
             <Tooltip contentStyle={tooltipStyle} />
             <Bar dataKey="count" radius={[0, 6, 6, 0]}>
               {(data?.topGestures ?? []).map((_, i) => (

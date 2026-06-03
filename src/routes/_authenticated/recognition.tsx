@@ -19,6 +19,7 @@ import { useHandTracker } from "@/lib/hand-tracker";
 import { useAuth } from "@/lib/auth-context";
 import { notify } from "@/lib/notify";
 import type { Prediction, RecognitionSession } from "@/lib/types";
+import { formatGestureName } from "@/lib/utils";
 import {
   endSession,
   predict,
@@ -283,7 +284,7 @@ function RecognitionPage() {
               aria-atomic="true"
               className="mt-3 text-3xl font-bold tracking-tight"
             >
-              {current?.gesture ?? "—"}
+              {current ? formatGestureName(current.gesture) : "—"}
             </div>
             <div className="mt-4">
               <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
@@ -357,7 +358,7 @@ function RecognitionPage() {
             {predictions.slice(0, 20).map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-3 p-4">
                 <div>
-                  <div className="text-sm font-medium">{p.gesture}</div>
+                  <div className="text-sm font-medium">{formatGestureName(p.gesture)}</div>
                   <div className="text-xs text-muted-foreground">
                     {format(new Date(p.timestamp), "p")} · {p.processingTimeMs.toFixed(0)} ms
                   </div>
