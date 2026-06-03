@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/lib/auth-context";
+import { formatGestureName } from "@/lib/utils";
 import { getHistory } from "@/services/recognitionApi";
 
 export const Route = createFileRoute("/_authenticated/history")({
