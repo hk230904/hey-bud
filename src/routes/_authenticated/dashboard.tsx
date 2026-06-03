@@ -204,7 +204,7 @@ function DashboardPage() {
                     <CheckCircle2 className="h-4 w-4" />
                   </div>
                   <div>
-                    <div className="text-sm font-medium">{p.gesture}</div>
+                    <div className="text-sm font-medium">{formatGestureName(p.gesture)}</div>
                     <div className="text-xs text-muted-foreground">
                       {format(new Date(p.timestamp), "MMM d, p")}
                     </div>
