@@ -14,6 +14,7 @@ import {
 } from "recharts";
 
 import { useAuth } from "@/lib/auth-context";
+import { formatGestureName } from "@/lib/utils";
 import { getAnalytics } from "@/services/recognitionApi";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
