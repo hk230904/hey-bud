@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth-context";
+import { formatGestureName } from "@/lib/utils";
 import { getAnalytics, getHistory } from "@/services/recognitionApi";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
