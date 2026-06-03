@@ -24,6 +24,7 @@ import { formatGestureName } from "@/lib/utils";
 import {
   endSession,
   predict,
+  predictMotion,
   savePrediction,
   startSession,
 } from "@/services/recognitionApi";
@@ -87,20 +88,21 @@ function RecognitionPage() {
         await new Promise((r) => setTimeout(r, 800));
         if (cancelled) break;
         const frame = latestFrameRef.current;
-        const pred = await predict({
+        const pred = predict({
           userId: user.id,
           sessionId: session.id,
           landmarks: frame.landmarks,
           gesture: frame.gesture,
         });
         if (cancelled) break;
-        if (pred) {
-          // Avoid spamming identical consecutive predictions
-          if (pred.gesture === lastLabel) continue;
-          lastLabel = pred.gesture;
-          const saved = await savePrediction(user.id, session.id, pred);
+        const motionPred = predictMotion();
+        const chosen = motionPred ?? pred;
+        if (chosen) {
+          if (chosen.gesture === lastLabel) continue;
+          lastLabel = chosen.gesture;
+          const saved = await savePrediction(user.id, session.id, chosen);
           setCurrent(saved);
-          setCurrentSource(pred.source);
+          setCurrentSource(chosen.source);
           setPredictions((prev) => [saved, ...prev]);
           qc.invalidateQueries({ queryKey: ["history", user.id] });
           qc.invalidateQueries({ queryKey: ["analytics", user.id] });
@@ -302,7 +304,11 @@ function RecognitionPage() {
               </span>
               {currentSource && (
                 <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                  {currentSource === "mediapipe" ? "Model" : "ASL rule"}
+                  {currentSource === "mediapipe"
+                    ? "Model"
+                    : currentSource === "motion-rule"
+                      ? "Motion"
+                      : "Static"}
                 </span>
               )}
             </div>
