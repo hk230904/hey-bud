@@ -17,6 +17,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRecognitionRouteImport } from './routes/_authenticated/recognition'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedLiveTrackingRouteImport } from './routes/_authenticated/live-tracking'
 import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticated/history'
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -62,6 +63,12 @@ const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedLiveTrackingRoute =
+  AuthenticatedLiveTrackingRouteImport.update({
+    id: '/live-tracking',
+    path: '/live-tracking',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedHistoryRoute = AuthenticatedHistoryRouteImport.update({
   id: '/history',
   path: '/history',
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/history': typeof AuthenticatedHistoryRoute
+  '/live-tracking': typeof AuthenticatedLiveTrackingRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/recognition': typeof AuthenticatedRecognitionRoute
 }
@@ -106,6 +114,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/history': typeof AuthenticatedHistoryRoute
+  '/live-tracking': typeof AuthenticatedLiveTrackingRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/recognition': typeof AuthenticatedRecognitionRoute
 }
@@ -121,6 +130,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
   '/_authenticated/history': typeof AuthenticatedHistoryRoute
+  '/_authenticated/live-tracking': typeof AuthenticatedLiveTrackingRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/recognition': typeof AuthenticatedRecognitionRoute
 }
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/feedback'
     | '/history'
+    | '/live-tracking'
     | '/profile'
     | '/recognition'
   fileRoutesByTo: FileRoutesByTo
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/feedback'
     | '/history'
+    | '/live-tracking'
     | '/profile'
     | '/recognition'
   id:
@@ -163,6 +175,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/feedback'
     | '/_authenticated/history'
+    | '/_authenticated/live-tracking'
     | '/_authenticated/profile'
     | '/_authenticated/recognition'
   fileRoutesById: FileRoutesById
@@ -234,6 +247,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/live-tracking': {
+      id: '/_authenticated/live-tracking'
+      path: '/live-tracking'
+      fullPath: '/live-tracking'
+      preLoaderRoute: typeof AuthenticatedLiveTrackingRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/history': {
       id: '/_authenticated/history'
       path: '/history'
@@ -270,6 +290,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
   AuthenticatedHistoryRoute: typeof AuthenticatedHistoryRoute
+  AuthenticatedLiveTrackingRoute: typeof AuthenticatedLiveTrackingRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedRecognitionRoute: typeof AuthenticatedRecognitionRoute
 }
@@ -279,6 +300,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,
   AuthenticatedHistoryRoute: AuthenticatedHistoryRoute,
+  AuthenticatedLiveTrackingRoute: AuthenticatedLiveTrackingRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedRecognitionRoute: AuthenticatedRecognitionRoute,
 }
@@ -298,3 +320,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
