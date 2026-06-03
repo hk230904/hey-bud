@@ -14,7 +14,7 @@ export interface Prediction {
   gestureType: string; // "MediaPipe Gesture" | "ASL Letter"
   text: string; // friendly text for caption; derived from gesture
   confidence: number;
-  source: "mediapipe" | "asl-rule";
+  source: "mediapipe" | "asl-rule" | "static-rule" | "motion-rule";
   processingTimeMs: number;
   timestamp: string;
 }

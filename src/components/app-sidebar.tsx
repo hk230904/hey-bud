@@ -7,6 +7,7 @@ import {
   User as UserIcon,
   MessageSquare,
   Sparkles,
+  Activity,
 } from "lucide-react";
 
 import {
@@ -26,6 +27,7 @@ import { useAuth } from "@/lib/auth-context";
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Recognition", url: "/recognition", icon: Sparkles },
+  { title: "Live Tracking", url: "/live-tracking", icon: Activity },
   { title: "History", url: "/history", icon: History },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
 ];
