@@ -19,6 +19,7 @@ import { useHandTracker } from "@/lib/hand-tracker";
 import { useAuth } from "@/lib/auth-context";
 import { notify } from "@/lib/notify";
 import type { Prediction, RecognitionSession } from "@/lib/types";
+import { formatGestureName } from "@/lib/utils";
 import {
   endSession,
   predict,
