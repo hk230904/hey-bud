@@ -167,7 +167,7 @@ function HistoryPage() {
             ) : (
               pageRows.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.gesture}</TableCell>
+                  <TableCell className="font-medium">{formatGestureName(p.gesture)}</TableCell>
                   <TableCell>{p.text}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {(p.confidence * 100).toFixed(1)}%
