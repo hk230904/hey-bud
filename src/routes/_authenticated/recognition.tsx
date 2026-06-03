@@ -284,7 +284,7 @@ function RecognitionPage() {
               aria-atomic="true"
               className="mt-3 text-3xl font-bold tracking-tight"
             >
-              {current?.gesture ?? "—"}
+              {current ? formatGestureName(current.gesture) : "—"}
             </div>
             <div className="mt-4">
               <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
