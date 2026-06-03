@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { NormalizedLandmark } from "@/lib/asl-classifier";
+import type { NormalizedLandmark } from "@/lib/gestures/landmark-features";
+import type { RecognitionSource } from "@/lib/gestures/recognizer";
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -53,7 +54,7 @@ function RecognitionPage() {
   const [session, setSession] = useState<RecognitionSession | null>(null);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [current, setCurrent] = useState<Prediction | null>(null);
-  const [currentSource, setCurrentSource] = useState<"mediapipe" | "asl-rule" | null>(null);
+  const [currentSource, setCurrentSource] = useState<RecognitionSource | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
   const { status: trackerStatus } = useHandTracker({

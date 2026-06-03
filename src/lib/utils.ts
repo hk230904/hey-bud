@@ -6,9 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Render the human-readable name of a recognized hand sign.
- * Stored gestures like "ASL L" become "Letter L"; MediaPipe gestures
- * (e.g. "Thumbs Up", "Fist", "Peace") are returned as-is.
+ * Display name for a recognized gesture. Stored gestures already use the
+ * new "Letter A" / "Digit 5" / "Thumbs Up" / "Please (ASL)" format, so this
+ * mostly handles legacy rows where older predictions were saved as "ASL A".
  */
 export function formatGestureName(gesture: string): string {
   if (gesture.startsWith("ASL ")) return `Letter ${gesture.slice(4)}`;
