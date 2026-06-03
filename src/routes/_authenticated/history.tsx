@@ -129,7 +129,7 @@ function HistoryPage() {
             <SelectContent>
               <SelectItem value="all">All gestures</SelectItem>
               {gestures.map((g) => (
-                <SelectItem key={g} value={g}>{g}</SelectItem>
+                <SelectItem key={g} value={g}>{formatGestureName(g)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
