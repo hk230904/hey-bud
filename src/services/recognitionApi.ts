@@ -1,39 +1,28 @@
 /**
  * Recognition service layer (Supabase-backed).
  *
- * Real in-browser gesture recognition (unchanged):
- *  - MediaPipe GestureRecognizer (pretrained) for common gestures
- *  - Rule-based ASL letter classifier on hand landmarks
- *
- * Persistence is via Supabase tables: predictions, recognition_sessions, feedback.
+ * Pipeline:
+ *   MediaPipe HandLandmarker frame → landmark feature extractor
+ *      → static classifier (A–Z, 0–9, emoji gestures)
+ *      → motion classifier (J, Z, Wave, Please, Sorry, …)
+ *      → fusion → persisted to `predictions`.
  */
-import { classifyAsl, type NormalizedLandmark } from "@/lib/asl-classifier";
 import { supabase } from "@/integrations/supabase/client";
+import { LABELS, LABELS_BY_ID, type GestureLabel } from "@/lib/gestures/labels";
+import type { NormalizedLandmark } from "@/lib/gestures/landmark-features";
+import {
+  Recognizer,
+  type RecognitionResult,
+  type RecognitionSource,
+} from "@/lib/gestures/recognizer";
 import type { Feedback, Prediction, RecognitionSession } from "@/lib/types";
 
-/** Friendly labels for the MediaPipe pretrained categories. */
-const MEDIAPIPE_LABELS: Record<string, { gesture: string; text: string }> = {
-  Closed_Fist: { gesture: "Fist", text: "Fist" },
-  Open_Palm: { gesture: "Hello", text: "Hello" },
-  Pointing_Up: { gesture: "Point", text: "Point" },
-  Thumb_Down: { gesture: "Thumbs Down", text: "No" },
-  Thumb_Up: { gesture: "Thumbs Up", text: "Yes" },
-  Victory: { gesture: "Peace", text: "Peace" },
-  ILoveYou: { gesture: "I love you", text: "I love you" },
-};
+// Singleton recognizer per page session; consumers may also create their own.
+export const recognizer = new Recognizer();
 
-export const SUPPORTED_GESTURES = [
-  { gesture: "Hello", text: "Hello" },
-  { gesture: "Thumbs Up", text: "Yes" },
-  { gesture: "Thumbs Down", text: "No" },
-  { gesture: "Peace", text: "Peace" },
-  { gesture: "Fist", text: "Fist" },
-  { gesture: "Point", text: "Point" },
-  { gesture: "I love you", text: "I love you" },
-  ...["A", "B", "C", "D", "E", "F", "I", "L", "O", "U", "V", "W", "Y"].map(
-    (l) => ({ gesture: `ASL ${l}`, text: l }),
-  ),
-];
+export const SUPPORTED_GESTURES: { gesture: string; text: string }[] = LABELS
+  .filter((l) => l.enabled)
+  .map((l) => ({ gesture: l.display, text: l.emoji ?? l.display }));
 
 export interface PredictRequest {
   userId: string;
@@ -43,53 +32,67 @@ export interface PredictRequest {
 }
 
 export interface PredictResponse {
-  gesture: string;
-  gestureType: string;
-  text: string;
+  gesture: string;        // human-readable display label
+  gestureType: string;    // "Letter" | "Digit" | "Gesture" | "Motion"
+  text: string;           // short caption text
   confidence: number;
   processingTimeMs: number;
-  source: "mediapipe" | "asl-rule";
+  source: RecognitionSource;
 }
 
-const MIN_CONFIDENCE = 0.6;
-
-export async function predict(
-  req: PredictRequest,
-): Promise<PredictResponse | null> {
-  if (!req.landmarks && !req.gesture) return null;
-  const start = performance.now();
-
-  // Layer 1: pretrained MediaPipe gesture
-  let mp: { gesture: string; text: string; confidence: number } | null = null;
-  if (req.gesture && req.gesture.score >= MIN_CONFIDENCE) {
-    const mapped = MEDIAPIPE_LABELS[req.gesture.name];
-    if (mapped) mp = { ...mapped, confidence: +req.gesture.score.toFixed(3) };
+function kindToType(label: GestureLabel) {
+  switch (label.kind) {
+    case "letter": return "Letter";
+    case "digit": return "Digit";
+    case "motion": return "Motion";
+    default: return "Gesture";
   }
+}
 
-  // Layer 2: rule-based ASL letter
-  let asl: { gesture: string; text: string; confidence: number } | null = null;
-  if (req.landmarks) {
-    const r = classifyAsl(req.landmarks);
-    if (r && r.confidence >= MIN_CONFIDENCE) {
-      asl = { gesture: `ASL ${r.letter}`, text: r.letter, confidence: r.confidence };
-    }
-  }
+function shortText(label: GestureLabel) {
+  if (label.kind === "letter") return label.display.replace("Letter ", "");
+  if (label.kind === "digit") return label.display.replace("Digit ", "");
+  return label.display;
+}
 
-  let chosen: typeof mp = null;
-  let source: PredictResponse["source"] = "mediapipe";
-  if (mp && asl) {
-    if (mp.confidence + 0.02 >= asl.confidence) { chosen = mp; source = "mediapipe"; }
-    else { chosen = asl; source = "asl-rule"; }
-  } else if (mp) { chosen = mp; source = "mediapipe"; }
-  else if (asl) { chosen = asl; source = "asl-rule"; }
-
-  if (!chosen) return null;
+function resultToResponse(
+  r: RecognitionResult,
+  startedAt: number,
+): PredictResponse {
+  const label = LABELS_BY_ID[r.labelId];
   return {
-    ...chosen,
-    gestureType: source === "mediapipe" ? "MediaPipe Gesture" : "ASL Letter",
-    processingTimeMs: +(performance.now() - start).toFixed(1),
-    source,
+    gesture: r.display,
+    gestureType: label ? kindToType(label) : "Gesture",
+    text: label ? shortText(label) : r.display,
+    confidence: r.confidence,
+    processingTimeMs: +(performance.now() - startedAt).toFixed(1),
+    source: r.source,
   };
+}
+
+/**
+ * Static + MediaPipe fusion. Also feeds the rolling motion buffer.
+ * Use `predictMotion` separately to drain temporal gestures.
+ */
+export function predict(req: PredictRequest): PredictResponse | null {
+  const start = performance.now();
+  recognizer.ingest(req.landmarks);
+  if (!req.landmarks && !req.gesture) return null;
+  const r = recognizer.classifyFrame(req.landmarks, req.gesture);
+  if (!r) return null;
+  return resultToResponse(r, start);
+}
+
+/** Drain a motion gesture if one just completed. */
+export function predictMotion(): PredictResponse | null {
+  const start = performance.now();
+  const r = recognizer.pollMotion();
+  if (!r) return null;
+  return resultToResponse(r, start);
+}
+
+export function resetMotion() {
+  recognizer.resetMotion();
 }
 
 // ---------- Mappers ----------
@@ -112,9 +115,13 @@ function rowToPrediction(r: PredictionRow): Prediction {
     sessionId: r.session_id,
     gesture: r.gesture,
     gestureType: r.gesture_type,
-    text: r.gesture.startsWith("ASL ") ? r.gesture.slice(4) : r.gesture,
+    text: r.gesture.startsWith("Letter ")
+      ? r.gesture.slice(7)
+      : r.gesture.startsWith("Digit ")
+        ? r.gesture.slice(6)
+        : r.gesture,
     confidence: Number(r.confidence),
-    source: r.source as "mediapipe" | "asl-rule",
+    source: r.source as Prediction["source"],
     processingTimeMs: Number(r.processing_time),
     timestamp: r.created_at,
   };
