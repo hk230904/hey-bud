@@ -54,7 +54,7 @@ function AuthLandingPage() {
       <ShaderBackground />
       <main
         id="main-content"
-        className="w-full max-w-md animate-fade-in-up"
+        className="w-full max-w-md"
       >
         <Link to="/" className="mb-8 flex items-center justify-center gap-2 text-white">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 backdrop-blur-md">
