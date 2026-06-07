@@ -30,7 +30,7 @@ export function AppHeader() {
   const handleLogout = async () => {
     await logout();
     notify.success("Signed out");
-    navigate({ to: "/login" });
+    navigate({ to: "/" });
   };
 
   return (

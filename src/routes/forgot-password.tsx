@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { notify } from "@/lib/notify";
-import { AuthShell } from "./login";
+import { AuthShell } from "@/components/auth-shell";
 
 export const Route = createFileRoute("/forgot-password")({
   head: () => ({
