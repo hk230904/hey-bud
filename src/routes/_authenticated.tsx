@@ -18,10 +18,7 @@ function AuthenticatedLayout() {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate({
-        to: "/login",
-        search: { redirect: window.location.pathname },
-      });
+      navigate({ to: "/" });
     }
   }, [loading, user, navigate]);
 
