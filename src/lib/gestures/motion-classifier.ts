@@ -39,8 +39,8 @@ export interface MotionPrediction {
   confidence: number;
 }
 
-const BUFFER_MS = 1400; // keep ~1.4 s of frames
-const MIN_FRAMES = 12;
+const BUFFER_MS = 2000; // keep ~2 s of frames
+const MIN_FRAMES = 10;
 
 export class MotionBuffer {
   private frames: MotionFrame[] = [];
@@ -139,23 +139,24 @@ interface Detector {
 }
 
 const detectors: Detector[] = [
-  // WAVE: open palm, horizontal oscillation across centroid
+  // WAVE: open palm (4 non-thumb fingers extended), horizontal oscillation
   (frames) => {
     const last = frames[frames.length - 1].lm;
     const ext = fingersExtended(last);
-    if (!ext.every(Boolean)) return null;
+    // Ignore thumb — it often reads as not-extended on a front-facing open palm.
+    if (!ext[1] || !ext[2] || !ext[3] || !ext[4]) return null;
     const traj = trajectory(frames);
     const xs = traj.map((p) => p.x);
     const ys = traj.map((p) => p.y);
     const box = bbox(traj);
-    if (box.w < 0.08) return null;
-    if (box.w < box.h * 1.2) return null;
+    if (box.w < 0.05) return null;
+    // Horizontal motion should dominate vertical, but be lenient.
+    if (box.w < box.h * 0.8) return null;
     const crossings = zeroCrossings(xs);
-    // moderate vertical motion only
     const yRange = Math.max(...ys) - Math.min(...ys);
-    if (yRange > box.w * 0.7) return null;
-    if (crossings >= 3) {
-      return { labelId: "wave", confidence: Math.min(0.95, 0.7 + crossings * 0.05) };
+    if (yRange > box.w) return null;
+    if (crossings >= 2) {
+      return { labelId: "wave", confidence: Math.min(0.95, 0.65 + crossings * 0.07) };
     }
     return null;
   },
@@ -167,9 +168,9 @@ const detectors: Detector[] = [
     if (!ext[1] || !ext[2] || !ext[3] || !ext[4]) return null;
     const traj = trajectory(frames);
     const motion = totalMotion(traj);
-    if (motion < 0.4) return null;
+    if (motion < 0.25) return null;
     const c = circularity(traj);
-    return c > 0.55
+    return c > 0.4
       ? { labelId: "please", confidence: Math.min(0.95, 0.6 + c * 0.35) }
       : null;
   },
@@ -181,9 +182,9 @@ const detectors: Detector[] = [
     if (ext.some((v, i) => i > 0 && v)) return null; // any non-thumb extended → not a fist
     const traj = trajectory(frames);
     const motion = totalMotion(traj);
-    if (motion < 0.4) return null;
+    if (motion < 0.25) return null;
     const c = circularity(traj);
-    return c > 0.5
+    return c > 0.35
       ? { labelId: "sorry", confidence: Math.min(0.92, 0.55 + c * 0.4) }
       : null;
   },
