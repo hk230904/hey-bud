@@ -215,9 +215,9 @@ function LiveTrackingPage() {
                 Buffering landmarks
               </div>
             )}
-            {current && Date.now() - current.at < 1800 && (
+            {displayed && Date.now() - displayed.at < 1800 && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground shadow-lg">
-                {current.gesture}
+                {displayed.gesture}
               </div>
             )}
           </div>
@@ -247,12 +247,12 @@ function LiveTrackingPage() {
           )}
         </div>
 
-        {/* Current motion */}
+        {/* Current sign */}
         <div className="space-y-4">
           <div className="rounded-2xl border bg-card p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-muted-foreground">
-                Current motion
+                Current sign
               </h2>
               <Activity className="h-4 w-4 text-primary" />
             </div>
@@ -261,30 +261,30 @@ function LiveTrackingPage() {
               aria-atomic="true"
               className="mt-3 text-3xl font-bold tracking-tight"
             >
-              {current ? current.gesture : "—"}
+              {displayed ? displayed.gesture : "—"}
             </div>
             <div className="mt-4">
               <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
                 <span>Confidence</span>
                 <span>
-                  {current ? `${(current.confidence * 100).toFixed(0)}%` : "—"}
+                  {displayed ? `${(displayed.confidence * 100).toFixed(0)}%` : "—"}
                 </span>
               </div>
-              <Progress value={current ? current.confidence * 100 : 0} />
+              <Progress value={displayed ? displayed.confidence * 100 : 0} />
             </div>
             <div className="mt-3 text-xs text-muted-foreground">
-              {current
-                ? `Detected ${Math.max(0, Math.floor((Date.now() - current.at) / 1000))}s ago`
-                : "Waiting for motion…"}
+              {displayed
+                ? `${displayed.source === "motion-rule" ? "Motion" : displayed.source === "mediapipe" ? "Model" : "Static"} · just now`
+                : "Show a sign…"}
             </div>
           </div>
 
           <div className="rounded-2xl border bg-card p-5">
             <h2 className="text-sm font-semibold text-muted-foreground">
-              Supported motion gestures
+              Supported gestures
             </h2>
             <ul className="mt-3 space-y-2 text-sm">
-              {motionLabels.map((l) => (
+              {supportedLabels.map((l) => (
                 <li key={l.id} className="flex items-start gap-2">
                   <span className="text-base leading-none">
                     {l.emoji ?? "•"}
