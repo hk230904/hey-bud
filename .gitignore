@@ -30,10 +30,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# Environment variables and deployment folders
-.env
-.env.*
-!.env.example
-.netlify
-
