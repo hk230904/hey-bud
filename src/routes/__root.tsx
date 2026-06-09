@@ -80,14 +80,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "SignSense — AI Sign Language Recognition" },
+      { title: "Sign Language prediction" },
       {
         name: "description",
         content:
           "Real-time AI sign language recognition that converts gestures into readable text. Accessible, fast, and easy to use.",
       },
       { name: "author", content: "SignSense" },
-      { property: "og:title", content: "SignSense — AI Sign Language Recognition" },
+      { property: "og:title", content: "Sign Language prediction" },
       {
         property: "og:description",
         content:
@@ -95,6 +95,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "Sign Language prediction" },
+      { name: "description", content: "AI-powered real-time sign language recognition system for accessible communication." },
+      { property: "og:description", content: "AI-powered real-time sign language recognition system for accessible communication." },
+      { name: "twitter:description", content: "AI-powered real-time sign language recognition system for accessible communication." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8298e4ab-d10f-4a54-b7c8-670bc80472eb/id-preview-f3098db1--cc1c3cfb-f2c3-4f36-8205-8d9b55ac90ae.lovable.app-1780836665809.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8298e4ab-d10f-4a54-b7c8-670bc80472eb/id-preview-f3098db1--cc1c3cfb-f2c3-4f36-8205-8d9b55ac90ae.lovable.app-1780836665809.png" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
