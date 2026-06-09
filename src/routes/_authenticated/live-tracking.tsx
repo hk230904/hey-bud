@@ -53,9 +53,18 @@ function LiveTrackingPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [events, setEvents] = useState<MotionEvent[]>([]);
   const [current, setCurrent] = useState<MotionEvent | null>(null);
+  const [instant, setInstant] = useState<MotionEvent | null>(null);
 
-  const motionLabels = useMemo(
-    () => LABELS.filter((l) => l.kind === "motion" && l.enabled),
+  const supportedLabels = useMemo(
+    () =>
+      LABELS.filter(
+        (l) =>
+          l.enabled &&
+          (l.kind === "motion" ||
+            ["open_palm", "thumbs_up", "thumbs_down", "victory", "ok_sign", "fist", "i_love_you", "pointing", "stop"].includes(
+              l.id,
+            )),
+      ),
     [],
   );
 
@@ -68,22 +77,36 @@ function LiveTrackingPage() {
     },
   });
 
-  // Polling loop — only emits motion gestures.
+  // Polling loop — surfaces both instant (static/MediaPipe) and motion gestures.
   useEffect(() => {
     if (!cameraOn || !user) return;
     let cancelled = false;
     const loop = async () => {
       while (!cancelled) {
-        await new Promise((r) => setTimeout(r, 120));
+        await new Promise((r) => setTimeout(r, 60));
         if (cancelled) break;
         const frame = latestFrameRef.current;
-        // Feed the rolling buffer every tick.
-        predict({
+        const i = predict({
           userId: user.id,
           sessionId: null,
           landmarks: frame.landmarks,
           gesture: frame.gesture,
         });
+        if (i) {
+          setInstant({
+            id: "instant",
+            gesture: i.gesture,
+            text: i.text,
+            confidence: i.confidence,
+            source: i.source,
+            at: Date.now(),
+          });
+        } else {
+          // Decay after 700 ms with no detection.
+          setInstant((prev) =>
+            prev && Date.now() - prev.at > 700 ? null : prev,
+          );
+        }
         const m = predictMotion();
         if (m) {
           const evt: MotionEvent = {
@@ -104,6 +127,10 @@ function LiveTrackingPage() {
       cancelled = true;
     };
   }, [cameraOn, user]);
+
+  // Display: motion takes over for ~1.5 s when it fires; otherwise show instant.
+  const displayed: MotionEvent | null =
+    current && Date.now() - current.at < 1500 ? current : instant;
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
@@ -188,9 +215,9 @@ function LiveTrackingPage() {
                 Buffering landmarks
               </div>
             )}
-            {current && Date.now() - current.at < 1800 && (
+            {displayed && Date.now() - displayed.at < 1800 && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground shadow-lg">
-                {current.gesture}
+                {displayed.gesture}
               </div>
             )}
           </div>
@@ -220,12 +247,12 @@ function LiveTrackingPage() {
           )}
         </div>
 
-        {/* Current motion */}
+        {/* Current sign */}
         <div className="space-y-4">
           <div className="rounded-2xl border bg-card p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-muted-foreground">
-                Current motion
+                Current sign
               </h2>
               <Activity className="h-4 w-4 text-primary" />
             </div>
@@ -234,30 +261,30 @@ function LiveTrackingPage() {
               aria-atomic="true"
               className="mt-3 text-3xl font-bold tracking-tight"
             >
-              {current ? current.gesture : "—"}
+              {displayed ? displayed.gesture : "—"}
             </div>
             <div className="mt-4">
               <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
                 <span>Confidence</span>
                 <span>
-                  {current ? `${(current.confidence * 100).toFixed(0)}%` : "—"}
+                  {displayed ? `${(displayed.confidence * 100).toFixed(0)}%` : "—"}
                 </span>
               </div>
-              <Progress value={current ? current.confidence * 100 : 0} />
+              <Progress value={displayed ? displayed.confidence * 100 : 0} />
             </div>
             <div className="mt-3 text-xs text-muted-foreground">
-              {current
-                ? `Detected ${Math.max(0, Math.floor((Date.now() - current.at) / 1000))}s ago`
-                : "Waiting for motion…"}
+              {displayed
+                ? `${displayed.source === "motion-rule" ? "Motion" : displayed.source === "mediapipe" ? "Model" : "Static"} · just now`
+                : "Show a sign…"}
             </div>
           </div>
 
           <div className="rounded-2xl border bg-card p-5">
             <h2 className="text-sm font-semibold text-muted-foreground">
-              Supported motion gestures
+              Supported gestures
             </h2>
             <ul className="mt-3 space-y-2 text-sm">
-              {motionLabels.map((l) => (
+              {supportedLabels.map((l) => (
                 <li key={l.id} className="flex items-start gap-2">
                   <span className="text-base leading-none">
                     {l.emoji ?? "•"}
