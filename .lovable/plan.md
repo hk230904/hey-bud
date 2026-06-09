@@ -1,61 +1,54 @@
-## 1. Sign-out should land on `/` (the new auth page)
+## Goal
+Make the live-tracking right-side panel respond **instantly and accurately** to hand gestures (wave, hi/hello, thumbs up, peace, OK, please, sorry, yes, no, beckon, A–Z, 0–9, etc.) — not just slow waves.
 
-The header still navigates to `/login` on sign-out. Update `src/components/app-header.tsx` `handleLogout` to `navigate({ to: "/" })`. Also align `src/routes/_authenticated.tsx` so an unauthenticated visit redirects to `/` instead of `/login`, and have `/login` and `/register` simply redirect to `/` (the consolidated auth page) so any lingering links land in the right place.
+## Root causes (from current code)
 
-## 2. Refresh on Netlify/Vercel jumps back to the lovable domain
+1. `src/routes/_authenticated/live-tracking.tsx` only consumes `predictMotion()`. The static + MediaPipe classifier (`predict()` returns it but its result is ignored), which handles all instant gestures — open palm = Hello, Thumbs Up, Peace, OK, Fist, Pointing, I Love You, every letter and digit — never reaches the UI.
+2. `src/lib/gestures/motion-classifier.ts`:
+   - `MIN_FRAMES = 10` and `setTimeout(120ms)` polling → ~1.2 s before any motion detector can run.
+   - `MotionRecognizer.poll()` calls `this.buffer.reset()` after every fire, so the next detection has to refill from zero.
+   - 1.2 s dedup window blocks rapid repeats.
+   - WAVE wins because its gates are loose; PLEASE/SORRY need perfect circularity, NO needs an exact start-gap/end-gap snap, YES needs strict y-dominance over x. All are hard to satisfy in casual webcam motion.
 
-I need to confirm the cause before changing anything — there are no hardcoded lovable URLs in the repo, so the redirect is coming from outside the code.
+## Fix plan (frontend / presentation only)
 
-Most likely cause: **Supabase Auth → URL Configuration → Site URL / Redirect URLs** is still set to your `*.lovable.app` preview. After auth events (email confirmation, password reset, OAuth, or even an `INITIAL_SESSION` rehydration on refresh), Supabase will redirect to that Site URL regardless of where the page actually lives.
+### 1. `src/routes/_authenticated/live-tracking.tsx`
+- In the polling loop, capture **both** outputs each tick:
+  - `const instant = predict({...})` → drives the "Current sign" panel immediately on every frame that classifies.
+  - `const motion = predictMotion()` → continues to feed the motion feed list and the on-video badge.
+- Add a separate `instant` state (last static/MediaPipe result, decayed after ~700 ms). Render it in the right-side panel as "Current sign" with its confidence; motion gestures (Wave, Please, etc.) override it for ~1.5 s when they fire.
+- Tighten the polling interval from 120 ms → 60 ms so detection feels real-time.
+- Update the placeholder copy ("Waiting for motion…") to "Show a sign…" and the supported-gestures list to include the top static gestures (Hello, Thumbs Up, OK, Peace, Fist, I Love You) alongside motion entries.
 
-Second possibility: this is a TanStack **Start** project (SSR Worker), not a plain Vite SPA. Netlify/Vercel can host it, but only with the correct adapter; otherwise direct URL refreshes 404 and a fallback (often the lovable URL set as a redirect rule) takes over.
+### 2. `src/lib/gestures/motion-classifier.ts` — responsiveness & accuracy
+- `MIN_FRAMES`: 10 → **6** (≈360 ms minimum window).
+- `MotionRecognizer.poll()`: after a fire, **keep the last 2 frames** instead of full reset, so the next motion can start building immediately.
+- Dedup window: 1200 ms → **450 ms**.
+- WAVE detector: lower `box.w` minimum from 0.05 → 0.035; allow `crossings >= 1` to fire at lower confidence (0.7) and `>= 2` at higher (0.88).
+- PLEASE: lower circularity threshold 0.4 → 0.3, motion gate 0.25 → 0.18.
+- SORRY: circularity 0.35 → 0.28, motion 0.25 → 0.18.
+- YES (nod): allow open hand OR fist; lower yRange floor 0.06 → 0.04; ratio `yRange > xRange * 1.4` → `* 1.1`; `crossings >= 2` → `>= 1` (single nod fires at 0.72).
+- NO: replace the brittle start-gap/end-gap rule with a horizontal-shake detector on the index/middle tips when only those two fingers are extended (x-zero-crossings ≥ 2).
+- BECKON: range gate 0.3 → 0.18, crossings ≥ 1.
+- THANK_YOU: dy threshold 0.1 → 0.06, motion 0.15 → 0.1.
 
-Action in plan mode is to ask you which of these matches your setup before editing. I will not add a `_redirects` / `vercel.json` until I know which platform and which deploy mode you're using.
+### 3. `src/lib/gestures/recognizer.ts`
+- Lower `MIN_CONFIDENCE` 0.65 → **0.55** so the static panel updates even on borderline frames (the UI shows the confidence number anyway).
 
-## 3. Live tracking motion panel never updates
+## Out of scope (won't touch)
+- DB schema, persistence, or auth.
+- MediaPipe model URL / WASM source.
+- Motion-classifier file structure or any new ML model.
 
-Tracing the pipeline: `useHandTracker` → `latestFrameRef` → `useEffect` polling loop calls `predict(...)` and `predictMotion()` → `Recognizer.pollMotion()` → `MotionRecognizer.poll()` which reads `MotionBuffer.snapshot()`.
+## Verification
+- Open `/live-tracking`, start camera, and confirm:
+  - Showing an open palm immediately fills "Current sign" with "Hello".
+  - Thumbs Up / Peace / OK / Fist / I Love You / Pointing all fire within ~1 frame.
+  - Side-to-side wave fires "Wave / Hello" within ~600 ms.
+  - Up-down nodding hand fires "Yes (ASL)" within ~600 ms.
+  - Side-to-side index+middle fires "No (ASL)".
+- No console errors; tracker still renders the skeleton overlay.
 
-The bug is in `src/services/recognitionApi.ts` `predict()`:
-
-```ts
-recognizer.ingest(req.landmarks);
-if (!req.landmarks && !req.gesture) return null;   // early-return BEFORE motion buffer push? no — ingest already ran
-```
-
-`ingest` runs every tick, so the buffer should fill. But the polling loop only runs `predict` when both landmarks and gesture exist; that's fine. The real problem is the WAVE detector's gate:
-
-```ts
-const ext = fingersExtended(last);
-if (!ext.every(Boolean)) return null;
-```
-
-`fingersExtended` returns 5 booleans including the **thumb**. With an open palm facing the camera the thumb often reads as not-extended, so `ext.every(Boolean)` is false and wave is rejected on virtually every frame. The other detectors have similar issues:
-
-- PLEASE / SORRY / THANK_YOU require very precise finger states + circle shape; the buffer is only 1.4 s which is barely one revolution.
-- The buffer is `reset()` on every fire and `MIN_FRAMES = 12` while we ingest at ~30 fps — usually fine, but combined with the strict gates almost nothing fires.
-
-Fix plan (`src/lib/gestures/motion-classifier.ts`):
-
-1. **Wave**: require only fingers 1–4 extended (ignore thumb), drop the `box.w < box.h * 1.2` ratio gate (loosen to `box.w > box.h * 0.8`), and lower the crossings threshold from 3 to 2. This is the gesture the user actually tested.
-2. **Yes / No / Beckon / Tap wrist**: loosen the thumb-state requirement the same way.
-3. **Please / Sorry**: lower `circularity` thresholds slightly (0.55 → 0.4, 0.5 → 0.35) and the motion gate (0.4 → 0.25) so a partial loop registers.
-4. Bump `BUFFER_MS` from 1400 → 2000 so slower waves still accumulate enough oscillation.
-5. In `src/services/recognitionApi.ts`, also feed the buffer when only landmarks (no gesture) exist — the current early-return is fine because `ingest` already ran, but add a brief comment so this isn't re-broken.
-6. In `LiveTrackingPage` UI, surface the buffer fill state (e.g. show "Hold the wave for ~1 s…") so the user knows the detector is active even before the first fire.
-
-I will retest in the live preview after the change by opening `/live-tracking`, starting the camera, waving, and confirming "Wave" appears in the Current motion panel within ~1 s.
-
----
-
-### Clarification needed before I can ship #2
-
-1. Where exactly are you deploying — Netlify, Vercel, or both?
-2. Is it a static export, or are you using their Node/Edge function runtime?
-3. What URL is in **Supabase → Authentication → URL Configuration → Site URL** right now?
-
-If you'd like, I can proceed with #1 and #3 immediately and we tackle #2 once you answer the above.  
-  
-1. im just deploying on vercel   
-2. both , im justing static export and Node/Edge function runtime  
-3. yes
+## Technical notes
+- All changes stay within three frontend files: `live-tracking.tsx`, `motion-classifier.ts`, `recognizer.ts`. No new dependencies, no migrations, no server functions.
+- The static classifier is already pure geometry and runs on every frame's landmarks — calling it has no perf cost beyond what we're already doing.

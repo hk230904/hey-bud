@@ -35,7 +35,7 @@ const MEDIAPIPE_TO_LABEL: Record<string, string> = {
   ILoveYou: "i_love_you",
 };
 
-const MIN_CONFIDENCE = 0.65;
+const MIN_CONFIDENCE = 0.55;
 
 function toResult(
   pred: StaticPrediction | MotionPrediction,

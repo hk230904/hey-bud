@@ -53,9 +53,18 @@ function LiveTrackingPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [events, setEvents] = useState<MotionEvent[]>([]);
   const [current, setCurrent] = useState<MotionEvent | null>(null);
+  const [instant, setInstant] = useState<MotionEvent | null>(null);
 
-  const motionLabels = useMemo(
-    () => LABELS.filter((l) => l.kind === "motion" && l.enabled),
+  const supportedLabels = useMemo(
+    () =>
+      LABELS.filter(
+        (l) =>
+          l.enabled &&
+          (l.kind === "motion" ||
+            ["open_palm", "thumbs_up", "thumbs_down", "victory", "ok_sign", "fist", "i_love_you", "pointing", "stop"].includes(
+              l.id,
+            )),
+      ),
     [],
   );
 
@@ -68,22 +77,36 @@ function LiveTrackingPage() {
     },
   });
 
-  // Polling loop — only emits motion gestures.
+  // Polling loop — surfaces both instant (static/MediaPipe) and motion gestures.
   useEffect(() => {
     if (!cameraOn || !user) return;
     let cancelled = false;
     const loop = async () => {
       while (!cancelled) {
-        await new Promise((r) => setTimeout(r, 120));
+        await new Promise((r) => setTimeout(r, 60));
         if (cancelled) break;
         const frame = latestFrameRef.current;
-        // Feed the rolling buffer every tick.
-        predict({
+        const i = predict({
           userId: user.id,
           sessionId: null,
           landmarks: frame.landmarks,
           gesture: frame.gesture,
         });
+        if (i) {
+          setInstant({
+            id: "instant",
+            gesture: i.gesture,
+            text: i.text,
+            confidence: i.confidence,
+            source: i.source,
+            at: Date.now(),
+          });
+        } else {
+          // Decay after 700 ms with no detection.
+          setInstant((prev) =>
+            prev && Date.now() - prev.at > 700 ? null : prev,
+          );
+        }
         const m = predictMotion();
         if (m) {
           const evt: MotionEvent = {
@@ -104,6 +127,10 @@ function LiveTrackingPage() {
       cancelled = true;
     };
   }, [cameraOn, user]);
+
+  // Display: motion takes over for ~1.5 s when it fires; otherwise show instant.
+  const displayed: MotionEvent | null =
+    current && Date.now() - current.at < 1500 ? current : instant;
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
